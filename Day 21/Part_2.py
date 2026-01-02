@@ -1,4 +1,3 @@
-from token import NUMBER
 from Puzzle_Input import *
 
 codes = ['456A'] #ex_codes
@@ -12,148 +11,92 @@ codes = ['456A'] #ex_codes
 
 v<<A : v<A<AA>>^A
 <<vA : v<<AA>A>^A
+
+(-2,-2),(0,1),(0,1),(2,0)
 """
 
 """ -----------------------------------------------------------------------------------------------|
-|                                              Part 1                                              |
+|                                             Attempt                                              |
 |----------------------------------------------------------------------------------------------- """
 
-dpad_codes = []
-for code in codes:
-    dpad = {''}
-    y, x = numpad['A']
-    for key in code:
-        new_y, new_x = numpad[key]
-        y_arrows = 'v' * (new_y - y) if new_y > y else '^' * (y - new_y)
-        x_arrows = '>' * (new_x - x) if new_x > x else '<' * (x - new_x)
+"""
+We're going to convert the key presses into a sequence of tuples which represent how far the robots
+have to move. For example, to press '456A', we would do this:
+    (-2,-2),(0,1),(0,1),(2,0)
+where the first entry of each tuple represents the change in y-position, and the second entry
+represents the change in x-position.
 
-        new_dpad = set()
-        if (y < 3 and new_y < 3) or (x > 0 and new_x > 0):
-            for command in dpad:
-                new_dpad.add(command + y_arrows + x_arrows + 'A')
-                new_dpad.add(command + x_arrows + y_arrows + 'A')
-        elif x == 0:
-            for command in dpad:
-                new_dpad.add(command + x_arrows + y_arrows + 'A')
-        else:
-            for command in dpad:
-                new_dpad.add(command + y_arrows + x_arrows + 'A')
+The directional keypad instructions will always be a  of tuples of the form (dy,dx) where
+    -1 <= dy <= 1   and   -2 <= dx <= 2.
+We're going to find the most efficient ways of performing these types of moves by finding all the
+ways to perform them as we double the number of directional keypad robots. Then we'll find the most
+efficient ways to do them after 25 iterations, and we'll see how efficiently we can do the numeric
+keypad moves.
 
-        dpad = new_dpad
-        y, x = new_y, new_x
-    dpad_codes.append(dpad)
-complexity = 0
-for i in range(len(codes)):
-    print(f"P1D0: {codes[i]}: {min({len(x) for x in dpad_codes[i]})} * {int(codes[i][:-1])}")
+base_expansion[k][i] = {expansions of ['<','v','>','^'][i] after 2^k iterations}
+"""
 
-for number_of_dpad_robots in range(2):
-    for i in range(len(codes)):
-        new_code = set()
-        for code in dpad_codes[i]:
-            dpad = {''}
-            y, x = dirpad['A']
-            for key in code:
-                new_y, new_x = dirpad[key]
-                y_arrows = 'v' * (new_y - y) if new_y > y else '^' * (y - new_y)
-                x_arrows = '>' * (new_x - x) if new_x > x else '<' * (x - new_x)
+def print_dict(d):
+    print("Dict:")
+    for key, val in d.items():
+        print(f"{key}")
+        for sequence in val:
+            print(f"\t{sequence}")
+    print()
 
-                new_dpad = set()
-                if (y > 0 and new_y > 0) or (x > 0 and new_x > 0):
-                    for command in dpad:
-                        new_dpad.add(command + y_arrows + x_arrows + 'A')
-                        new_dpad.add(command + x_arrows + y_arrows + 'A')
-                elif x == 0:
-                    for command in dpad:
-                        new_dpad.add(command + x_arrows + y_arrows + 'A')
-                else:
-                    for command in dpad:
-                        new_dpad.add(command + y_arrows + x_arrows + 'A')
+expand = [{
+    (-1,-1) : {('<', 0, ( 0,-1),( 1,-1)),         ('^', 0, ( 1,-2),(-1, 1))}, # ^<,  <^
+    (-1, 0) : {('^', 0, ( 0,-1))},                                            # ^
+    (-1, 1) : {('>', 0, ( 0,-1),( 1, 1)),         ('^', 0, ( 1, 0),(-1,-1))}, # ^>,  >^
+    (-1, 2) : {('>', 0, ( 1, 0),(-1,-1),( 1, 1)), ('^', 1, ( 1, 0),(-1,-1))}, # >^>, >>^
 
-                dpad = new_dpad
-                y, x = new_y, new_x
-            new_code |= dpad
-        dpad_codes[i] = new_code
-    for j in range(len(codes)):
-        print(f"P1D{number_of_dpad_robots+1}: {codes[j]}: {min({len(x) for x in dpad_codes[j]})} * {int(codes[j][:-1])}")
-print()
+    ( 0,-2) : {('<', 1, ( 1,-2))}, # <<
+    ( 0,-1) : {('<', 0, ( 1,-2))}, # <
+    ( 0, 1) : {('>', 0, ( 1, 0))}, # >
+    ( 0, 2) : {('>', 1, ( 1, 0))}, # >>
 
-""" -----------------------------------------------------------------------------------------------|
-|                          Part 2 - Convert numpad codes into dpad codes                           |
-|----------------------------------------------------------------------------------------------- """
+    ( 1,-2) : {('<', 1, ( 1,-1),( 0,-1)), ('<', 0, ( 1,-2),( 0, 1),( 0,-1))}, # v<<, <v<
+    ( 1,-1) : {('<', 0, ( 1,-1),( 0,-1)), ('v', 0, ( 1,-2),( 0, 1))},         # v<,  <v
+    ( 1, 0) : {('v', 0, ( 1,-1))},                                            # v
+    ( 1, 1) : {('>', 0, ( 1,-1),( 0, 1)), ('v', 0, ( 1, 0),( 0,-1))},         # v>,  >v
+}]
 
-dpad_codes = []
-for code in codes:
-    dpad = {'' : 0, '<' : 0, '>' : 0, '^' : 0, 'v' : 0, '<^' : 0, '<v' : 0, '>^' : 0, '>v' : 0}
-    y, x = numpad['A']
-    for numkey in code:
-        new_y, new_x = numpad[numkey]
-        dpad['' + ('<' if new_x < x else ('' if new_x == x else '>')) + ('^' if new_y < y else ('' if new_y == y else 'v'))] += 1
-        dpad[''] += max(0, abs(new_x - x) - 1) + max(0, abs(new_y - y) - 1)
-        y, x = new_y, new_x
-    dpad_codes.append(dpad)
+for number_of_expansions in range(4):
+    print_dict(expand[-1])
+    for key, val in expand[-1].items():
+        lengths = {}
+        for x in val:
+            y = len(x) - 2 + x[1]
+            if y in lengths:
+                lengths[y] += 1
+            else:
+                lengths[y] = 1
+        print(f"{key} - ", end = "")
+        keys = list(lengths.keys())
+        keys.sort()
+        for k in keys:
+            print(f"{k}:{lengths[k]}, ", end = "")
+        print("}")
+    print(f"number_of_expansions = {number_of_expansions}")
 
-""" -----------------------------------------------------------------------------------------------|
-|                           Part 2 - Convert dpad codes into dpad codes                            |
-|----------------------------------------------------------------------------------------------- """
+    expand.append({})
+    for delta in expand[-2].keys():
+        expand[-1][delta] = set()
+        for sequence in expand[-2][delta]:
+            new_sequences = {('A', 0)}
+            for new_delta in sequence[2:]:
+                new_new_sequences = set()
+                for x in new_sequences:
+                    y_end, x_end = dirpad[x[0]]
+                    for y in expand[-2][new_delta]:
+                        if y[2][0] == y_end and y[2][1] + 2 == x_end:
+                            new_new_sequences.add((y[0], x[1] + y[1] + 1) + x[2:] + y[3:])
+                        else:
+                            new_new_sequences.add((y[0], x[1] + y[1]) + x[2:] + ((y[2][0] - y_end, y[2][1] + 2 - x_end),) + y[3:])
+                new_sequences = new_new_sequences
+            expand[-1][delta] |= new_sequences
+        # lengths = {len(x) - 2 + x[1] for x in expand[-1][delta]}
+        # expand[-1][delta] = {x for x in expand[-1][delta] if len(x) - 2 + x[1] < min(lengths) + 5}
 
-# print(f"I0: {dpad_codes[2]}")
-for number_of_dpad_robots in range(2):
-    for i in range(len(codes)):
-        code = dpad_codes[i]
-        length = code['']
-        length += 2 * (code['<'] + code['>'] + code['^'] + code['v'])
-        length += 3 * (code['<^'] + code['<v'] + code['>^'] + code['>v'])
-        complexity += length * int(codes[i][:-1])
-        print(f"P2D{number_of_dpad_robots}: {codes[i]}: {length} * {int(codes[i][:-1])}")
-
-    for i in range(len(dpad_codes)):
-        dpad = {'' : 0, '<' : 0, '>' : 0, '^' : 0, 'v' : 0, '<^' : 0, '<v' : 0, '>^' : 0, '>v' : 0}
-        for key, val in dpad_codes[i].items():
-            # if number_of_dpad_robots == 1 and i == 2:
-            #     print(f"key={key :2s}, val={val}, dpad={dpad}")
-
-            if key == '':
-                dpad[''] += val
-
-            if key == '^':
-                dpad['<'] += val
-                dpad['>'] += val
-            if key == '>':
-                dpad['v'] += val
-                dpad['^'] += val
-            if key == '<':
-                dpad['<v'] += val
-                dpad['>^'] += val
-                dpad[''] += 2 * val
-            if key == 'v':
-                dpad['<v'] += val
-                dpad['>^'] += val
-
-            if key == '<^' or key == '<v':
-                dpad['<v'] += val
-                dpad[''] += val
-                dpad['>^'] += val
-                dpad['>'] += val
-            if key == '>^':
-                dpad['<'] += val
-                dpad['>v'] += val
-                dpad['^'] += val
-            if key == '>v':
-                dpad['v'] += val
-                dpad['<'] += val
-                dpad['>^'] += val
-        dpad_codes[i] = dpad
-
-""" -----------------------------------------------------------------------------------------------|
-|                                     Part 2 - Get complexity                                      |
-|----------------------------------------------------------------------------------------------- """
-
-complexity = 0
-for i in range(len(dpad_codes)):
-    code = dpad_codes[i]
-    length = code['']
-    length += 2 * (code['<'] + code['>'] + code['^'] + code['v'])
-    length += 3 * (code['<^'] + code['<v'] + code['>^'] + code['>v'])
-    complexity += length * int(codes[i][:-1])
-    print(f"P2D2: {codes[i]}: {length} * {int(codes[i][:-1])}")
-print("Answer to part 2 =", complexity)
+print(f"Done!")
+print_dict(expand[-1])
